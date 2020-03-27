@@ -3,7 +3,8 @@
 #
 import pybamm
 
-import numpy as np
+import jax.numpy as jnp
+from jax import ops
 from scipy.sparse import csr_matrix, vstack
 
 
@@ -93,9 +94,9 @@ class StateVectorBase(pybamm.Symbol):
         if evaluation_array is not None and pybamm.settings.debug_mode is False:
             self._evaluation_array = evaluation_array
         else:
-            array = np.zeros(y_slices[-1].stop)
+            array = jnp.zeros(y_slices[-1].stop)
             for y_slice in y_slices:
-                array[y_slice] = True
+                array = ops.index_update(array, y_slice, True)
             self._evaluation_array = [bool(x) for x in array]
 
     def set_id(self):
@@ -143,31 +144,31 @@ class StateVectorBase(pybamm.Symbol):
             raise NotImplementedError(
                 "Jacobian only implemented for a single-slice StateVector"
             )
-        variable_y_indices = np.arange(variable.first_point, variable.last_point)
+        variable_y_indices = jnp.arange(variable.first_point, variable.last_point)
 
-        jac = csr_matrix((0, np.size(variable_y_indices)))
+        jac = csr_matrix((0, jnp.size(variable_y_indices)))
         for y_slice in self.y_slices:
             # Get indices of state vectors
-            slice_indices = np.arange(y_slice.start, y_slice.stop)
+            slice_indices = jnp.arange(y_slice.start, y_slice.stop)
 
             # Return zeros of correct size if no entries match
-            if np.size(np.intersect1d(slice_indices, variable_y_indices)) == 0:
-                jac = csr_matrix((np.size(slice_indices), np.size(variable_y_indices)))
+            if jnp.size(jnp.intersect1d(slice_indices, variable_y_indices)) == 0:
+                jac = csr_matrix((jnp.size(slice_indices), jnp.size(variable_y_indices)))
             else:
                 # Populate entries corresponding to matching y slices, and shift so
                 # that the matrix is the correct size
-                row = np.intersect1d(slice_indices, variable_y_indices) - y_slice.start
+                row = jnp.intersect1d(slice_indices, variable_y_indices) - y_slice.start
                 col = (
-                    np.intersect1d(slice_indices, variable_y_indices)
+                    jnp.intersect1d(slice_indices, variable_y_indices)
                     - variable.first_point
                 )
-                data = np.ones_like(row)
+                data = jnp.ones_like(row)
                 jac = vstack(
                     [
                         jac,
                         csr_matrix(
                             (data, (row, col)),
-                            shape=(np.size(slice_indices), np.size(variable_y_indices)),
+                            shape=(jnp.size(slice_indices), jnp.size(variable_y_indices)),
                         ),
                     ]
                 )
@@ -189,7 +190,7 @@ class StateVectorBase(pybamm.Symbol):
         The size of a StateVector is the number of True elements in its evaluation_array
         See :meth:`pybamm.Symbol.evaluate_for_shape()`
         """
-        return np.nan * np.ones((self.size, 1))
+        return jnp.nan * jnp.ones((self.size, 1))
 
 
 class StateVector(StateVectorBase):
@@ -237,8 +238,8 @@ class StateVector(StateVectorBase):
             )
 
         out = (y[: len(self._evaluation_array)])[self._evaluation_array]
-        if isinstance(out, np.ndarray) and out.ndim == 1:
-            out = out[:, np.newaxis]
+        if isinstance(out, jnp.ndarray) and out.ndim == 1:
+            out = out[:, jnp.newaxis]
         return out
 
     def diff(self, variable):
@@ -304,8 +305,8 @@ class StateVectorDot(StateVectorBase):
             )
 
         out = (y_dot[: len(self._evaluation_array)])[self._evaluation_array]
-        if isinstance(out, np.ndarray) and out.ndim == 1:
-            out = out[:, np.newaxis]
+        if isinstance(out, jnp.ndarray) and out.ndim == 1:
+            out = out[:, jnp.newaxis]
         return out
 
     def diff(self, variable):
