@@ -1,7 +1,8 @@
 #
 # NumpyArray class
 #
-import numpy as np
+import jax.numpy as jnp
+import numpy as onp
 import pybamm
 from scipy.sparse import issparse, csr_matrix
 
@@ -74,7 +75,7 @@ class Array(pybamm.Symbol):
             if issparse(entries):
                 self._entries_string = str(entries.__dict__)
             else:
-                self._entries_string = entries.tostring()
+                self._entries_string = onp.asarray(entries).tostring()
 
     def set_id(self):
         """ See :meth:`pybamm.Symbol.set_id()`. """
